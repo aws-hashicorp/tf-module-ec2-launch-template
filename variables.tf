@@ -1,83 +1,62 @@
-# --- Global Variables ---
-variable "name_prefix" {
-  description = "Prefix for the launch template name"
+variable "name" {
+  description = "Base name for resources"
   type        = string
-  default     = ""
+  default = ""
 }
-
 variable "ami_id" {
-  description = "AMI ID for the EC2 instance"
+  description = "AMI ID"
   type        = string
+  default = ""
 }
-
 variable "instance_type" {
-  description = "EC2 instance type"
+  description = "Instance type"
   type        = string
+  default     = "t3.micro"
 }
-
 variable "vpc_id" {
-  description = "The ID of the VPC"
+  description = "VPC ID"
   type        = string
+  default = ""
 }
-
-# --- Security Group Variables ---
-variable "existing_sg_id" {
-  description = "ID del Security Group existente (si ya hay uno)"
-  type        = string
-  default     = ""
-}
-variable "allowed_cidrs" {
-  description = "The CIDR blocks to allow"
-  type        = list(string)
-  default     = []
-}
-
-variable "allowed_security_groups" {
-  description = "The security groups to allow"
-  type        = list(string)
-  default     = []
-}
-
-variable "allowed_prefix_list_ids" {
-  description = "The prefix list IDs to allow"
-  type        = list(string)
-  default     = []
-}
-
-variable "sg_listener_port_from" {
-  description = "The starting port for the security group listener"
-  type        = number
-  default     = 80
-}
-
-variable "sg_listener_port_to" {
-  description = "The ending port for the security group listener"
-  type        = number
-  default     = 80
-}
-
-variable "sg_listener_protocol" {
-  description = "The protocol for the security group listener"
-  type        = string
-  default     = "tcp"
-}
-
-variable "security_groups" {
-  description = "List of security groups for the instance"
-  type        = list(string)
-  default     = []
-}
-
 variable "subnet_ids" {
-  description = "Subnet IDs where the instance will be launched"
+  description = "List of subnet IDs"
   type        = list(string)
-  default     = []
 }
-
-variable "count_instances" {
-  description = "number of instances"
+variable "instance_count" {
+  description = "Number of instances"
   type        = number
   default     = 1
+}
+variable "existing_sg_id" {
+  description = "Existing SG ID to reuse"
+  type        = string
+  default     = ""
+}
+
+variable "ingress_rules" {
+  description = "Ingress rules for SG"
+  type = list(object({
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+  }))
+  default = [
+    { from_port = 22, to_port = 22, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }
+  ]
+}
+
+variable "egress_rules" {
+  description = "Egress rules for SG"
+  type = list(object({
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+  }))
+  default = [
+    { from_port = 0, to_port = 0, protocol = "-1", cidr_blocks = ["0.0.0.0/0"] }
+  ]
 }
 
 # --- IAM Role Variables ---
@@ -89,15 +68,15 @@ variable "permissions_name" {
 
 # --- Root volume configuration ---
 variable "root_volume_device_name" {
-  description = "Device name for root volume"
+  description = "Root volume device name"
   type        = string
   default     = "/dev/xvda"
 }
 
 variable "root_volume_size" {
-  description = "Root volume size in GB"
+  description = "Root volume size (GB)"
   type        = number
-  default     = 20
+  default     = 30
 }
 
 variable "root_volume_type" {
@@ -105,56 +84,138 @@ variable "root_volume_type" {
   type        = string
   default     = "gp3"
 }
-
+variable "ebs_delete_on_termination" {
+  description = "delete_on_termination the EBS volume"
+  type        = bool
+  default     = true
+}
 # --- Additional EBS volume configuration ---
-variable "additional_ebs_enabled" {
-  description = "Whether to create an additional EBS volume"
+variable "create_additional_ebs" {
+  description = "Whether to create an extra EBS volume"
   type        = bool
   default     = false
+}
+variable "additional_ebs_device_name" {
+  description = "Extra EBS device name"
+  type        = string
+  default     = "/dev/sdb"
+}
+variable "additional_ebs_size" {
+  description = "Extra EBS size (GB)"
+  type        = number
+  default     = 20
+}
+variable "additional_ebs_type" {
+  description = "Extra EBS type"
+  type        = string
+  default     = "gp3"
+}
+variable "additional_ebs_delete_on_termination" {
+  description = "Whether to delete the EBS volume on instance termination"
+  type        = bool
+  default     = true
 }
 variable "ebs_encrypted" {
   description = "Whether to encrypt the EBS volume"
   type        = bool
   default     = true
 }
-
-variable "additional_ebs_device_name" {
-  description = "Device name for additional EBS volume"
-  type        = string
-  default     = "/dev/sdf"
-}
-
-variable "additional_ebs_size" {
-  description = "Size of additional EBS volume in GB"
+# --- Target Group Variables ---
+variable "target_group_port" {
+  description = "Target Group port"
   type        = number
-  default     = 100
+  default     = 80
 }
-
-variable "additional_ebs_type" {
-  description = "Type of additional EBS volume"
+variable "target_group_protocol" {
+  description = "Target Group protocol"
   type        = string
-  default     = "gp3"
+  default     = "HTTP"
+}
+variable "health_check_timeout" {
+  description = "The timeout for the health check"
+  type        = number
+  default     = 5
 }
 
-variable "additional_ebs_delete_on_termination" {
-  description = "Whether to delete the EBS volume on instance termination"
+variable "health_check_unhealthy_threshold" {
+  description = "The unhealthy threshold for the health check"
+  type        = number
+  default     = 2
+}
+
+variable "health_check_healthy_threshold" {
+  description = "The healthy threshold for the health check"
+  type        = number
+  default = 2
+}
+
+variable "health_check_interval" {
+  description = "The interval for the health check"
+  type        = number
+  default = 30
+}
+
+variable "health_check_protocol" {
+  description = "The protocol for the health check"
+  type        = string
+  default = "HTTP"
+}
+
+variable "health_check_matcher" {
+  description = "The port for the health check"
+  type        = string
+  default = "200"
+}
+
+variable "health_check_path" {
+  description = "The path for the health check"
+  type        = string
+  default = "/"
+}
+
+# Auto Scaling Variables
+variable "create_autoscaling_group" {
+  description = "Whether to create ASG"
   type        = bool
-  default     = true
+  default     = false
+}
+variable "health_check_type" {
+  type        = string
+  description = "Tipo de health check para el Auto Scaling Group (EC2 o ELB)"
+  default     = "EC2"
+}
+
+variable "health_check_grace_period" {
+  type        = number
+  description = "Tiempo de gracia (en segundos) para que las instancias se marquen como saludables en el ASG"
+  default     = 300
+}
+
+variable "asg_min_size" {
+  description = "ASG min size"
+  type        = number
+  default     = 0
+}
+variable "asg_max_size" {
+  description = "ASG max size"
+  type        = number
+  default     = 0
+}
+variable "asg_desired_capacity" {
+  description = "ASG desired capacity"
+  type        = number
+  default     = 0
 }
 
 variable "tags" {
-  description = "Tags to apply to resources"
+  description = "Tags for all resources"
   type        = map(string)
   default     = {}
 }
 
-variable "update_default_version" {
-  description = "Whether update_default_version"
-  type        = bool
-  default     = true
-}
-variable "ebs_delete_on_termination" {
-  description = "delete_on_termination the EBS volume"
-  type        = bool
-  default     = true
+
+variable "user_data" {
+  description = "Script de inicialización (en texto plano, no codificado en base64)."
+  type        = string
+  default     = ""
 }
