@@ -52,6 +52,11 @@ resource "aws_launch_template" "this" {
   instance_type          = var.instance_type
   update_default_version = true
 
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   iam_instance_profile {
     name = aws_iam_instance_profile.ec2_instance_profile.name
   }
@@ -94,7 +99,7 @@ resource "aws_launch_template" "this" {
 
     tags = merge(
       {
-        Name = "${var.name}-instance"
+        Name = "${var.name}"
       },
       var.tags
     )
@@ -118,7 +123,7 @@ resource "aws_instance" "this" {
 # Target Group (optional)
 resource "aws_lb_target_group" "this" {
   count       = var.create_autoscaling_group ? 1 : 0
-  name        = "${var.name}-tg"
+  name        = "tg-${var.name}"
   port        = var.target_group_port
   protocol    = var.target_group_protocol
   vpc_id      = var.vpc_id
@@ -138,7 +143,7 @@ resource "aws_lb_target_group" "this" {
 # Autoscaling Group (optional, inactive by default)
 resource "aws_autoscaling_group" "this" {
   count            = var.create_autoscaling_group ? 1 : 0
-  name             = "${var.name}-asg"
+  name             = "asg-${var.name}"
   desired_capacity = var.asg_desired_capacity
   max_size         = var.asg_max_size
   min_size         = var.asg_min_size
