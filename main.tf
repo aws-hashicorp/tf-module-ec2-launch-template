@@ -60,7 +60,7 @@ resource "aws_launch_template" "this" {
   iam_instance_profile {
     name = aws_iam_instance_profile.ec2_instance_profile.name
   }
-
+  # Volumen raíz
   block_device_mappings {
     device_name = var.root_volume_device_name
     ebs {
@@ -70,19 +70,20 @@ resource "aws_launch_template" "this" {
       encrypted             = var.ebs_encrypted
     }
   }
-
+  # Volúmenes EBS adicionales (dinámicos)
   dynamic "block_device_mappings" {
-    for_each = var.create_additional_ebs ? [1] : []
+    for_each = var.additional_volumes
     content {
-      device_name = var.additional_ebs_device_name
+      device_name = lookup(block_device_mappings.value, "device_name", null)
       ebs {
-        volume_size           = var.additional_ebs_size
-        volume_type           = var.additional_ebs_type
-        delete_on_termination = var.additional_ebs_delete_on_termination
-        encrypted             = var.ebs_encrypted
+        volume_size           = lookup(block_device_mappings.value, "size", 10)
+        volume_type           = lookup(block_device_mappings.value, "type", "gp3")
+        delete_on_termination = lookup(block_device_mappings.value, "delete_on_termination", true)
+        encrypted             = lookup(block_device_mappings.value, "encrypted", true)
       }
     }
   }
+
   dynamic "network_interfaces" {
     for_each = var.create_autoscaling_group ? [1] : []
     content {
@@ -90,6 +91,7 @@ resource "aws_launch_template" "this" {
       subnet_id                   = null
       security_groups             = [var.existing_sg_id != "" ? var.existing_sg_id : aws_security_group.this[0].id]
       delete_on_termination       = true
+      private_ip_address          = length(var.private_ips) > 0 ? var.private_ips[0] : null
     }
   }
   user_data = var.user_data != "" ? base64encode(var.user_data) : null
@@ -116,13 +118,15 @@ resource "aws_instance" "this" {
   }
   subnet_id              = element(var.subnet_ids, count.index % length(var.subnet_ids))
   vpc_security_group_ids = [var.existing_sg_id != "" ? var.existing_sg_id : aws_security_group.this[0].id]
+  private_ip             = length(var.private_ips) > count.index ? var.private_ips[count.index] : null
 
   tags = merge(var.tags, { Name = "${var.name}-${count.index + 1}" })
 }
 
 # Target Group (optional)
 resource "aws_lb_target_group" "this" {
-  count       = var.create_autoscaling_group ? 1 : 0
+  count = var.create_autoscaling_group || var.create_target_group ? 1 : 0
+
   name        = "tg-${var.name}"
   port        = var.target_group_port
   protocol    = var.target_group_protocol
@@ -140,6 +144,16 @@ resource "aws_lb_target_group" "this" {
   }
 }
 
+resource "aws_lb_target_group_attachment" "this" {
+  count = (!var.create_autoscaling_group && var.create_target_group) ? length(aws_instance.this) : 0
+
+  target_group_arn = aws_lb_target_group.this[0].arn
+  target_id        = aws_instance.this[count.index].id
+  port             = var.target_group_port
+
+  depends_on = [aws_lb_target_group.this, aws_instance.this]
+}
+
 # Autoscaling Group (optional, inactive by default)
 resource "aws_autoscaling_group" "this" {
   count            = var.create_autoscaling_group ? 1 : 0
@@ -153,8 +167,33 @@ resource "aws_autoscaling_group" "this" {
     id      = aws_launch_template.this.id
     version = "$Latest"
   }
-  target_group_arns         = aws_lb_target_group.this[*].arn
+  target_group_arns         = var.create_autoscaling_group || var.create_target_group ? aws_lb_target_group.this[*].arn : []
   health_check_type         = var.health_check_type
   health_check_grace_period = var.health_check_grace_period
   depends_on                = [aws_lb_target_group.this]
+}
+
+resource "aws_lb_listener_rule" "tg_attachment" {
+  count = (
+    var.create_listener_rule &&
+    (var.create_target_group || var.create_autoscaling_group)
+  ) ? 1 : 0
+
+  listener_arn = var.alb_listener_arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this[0].arn
+  }
+
+  condition {
+    path_pattern {
+      values = var.listener_rule_path_patterns
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name = "tg-attachment-${var.name}"
+  })
 }

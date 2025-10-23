@@ -1,12 +1,12 @@
 variable "name" {
   description = "Base name for resources"
   type        = string
-  default = ""
+  default     = ""
 }
 variable "ami_id" {
   description = "AMI ID"
   type        = string
-  default = ""
+  default     = ""
 }
 variable "instance_type" {
   description = "Instance type"
@@ -16,7 +16,7 @@ variable "instance_type" {
 variable "vpc_id" {
   description = "VPC ID"
   type        = string
-  default = ""
+  default     = ""
 }
 variable "subnet_ids" {
   description = "List of subnet IDs"
@@ -70,7 +70,7 @@ variable "permissions_name" {
 variable "root_volume_device_name" {
   description = "Root volume device name"
   type        = string
-  default     = "/dev/xvda"
+  default     = "/sda"
 }
 
 variable "root_volume_size" {
@@ -90,30 +90,24 @@ variable "ebs_delete_on_termination" {
   default     = true
 }
 # --- Additional EBS volume configuration ---
-variable "create_additional_ebs" {
-  description = "Whether to create an extra EBS volume"
-  type        = bool
-  default     = false
+
+# Volúmenes adicionales
+variable "additional_volumes" {
+  description = "Lista de volúmenes adicionales (device_name, size, type, delete_on_termination, encrypted)"
+  type = list(object({
+    device_name           = string
+    size                  = number
+    type                  = string
+    delete_on_termination = optional(bool, true)
+    encrypted             = optional(bool, true)
+  }))
+  default = []
 }
-variable "additional_ebs_device_name" {
-  description = "Extra EBS device name"
-  type        = string
-  default     = "/dev/sdb"
-}
-variable "additional_ebs_size" {
-  description = "Extra EBS size (GB)"
-  type        = number
-  default     = 20
-}
-variable "additional_ebs_type" {
-  description = "Extra EBS type"
-  type        = string
-  default     = "gp3"
-}
-variable "additional_ebs_delete_on_termination" {
-  description = "Whether to delete the EBS volume on instance termination"
-  type        = bool
-  default     = true
+
+variable "private_ips" {
+  description = "Lista de IPs privadas para asignar por instancia"
+  type        = list(string)
+  default     = []
 }
 variable "ebs_encrypted" {
   description = "Whether to encrypt the EBS volume"
@@ -146,31 +140,37 @@ variable "health_check_unhealthy_threshold" {
 variable "health_check_healthy_threshold" {
   description = "The healthy threshold for the health check"
   type        = number
-  default = 2
+  default     = 2
 }
 
 variable "health_check_interval" {
   description = "The interval for the health check"
   type        = number
-  default = 30
+  default     = 30
 }
 
 variable "health_check_protocol" {
   description = "The protocol for the health check"
   type        = string
-  default = "HTTP"
+  default     = "HTTP"
 }
 
 variable "health_check_matcher" {
   description = "The port for the health check"
   type        = string
-  default = "200"
+  default     = "200"
 }
 
 variable "health_check_path" {
   description = "The path for the health check"
   type        = string
-  default = "/"
+  default     = "/"
+}
+## Nuevas Variables target group 
+variable "create_target_group" {
+  description = "Si es true, crea un Target Group asociado al ALB"
+  type        = bool
+  default     = false
 }
 
 # Auto Scaling Variables
@@ -218,4 +218,21 @@ variable "user_data" {
   description = "Script de inicialización (en texto plano, no codificado en base64)."
   type        = string
   default     = ""
+}
+
+variable "create_listener_rule" {
+  description = "Whether to create a listener rule"
+  type        = bool
+  default     = false
+}
+
+variable "alb_listener_arn" {
+  description = "ARN del listener del ALB al cual se asociará el Target Group (solo si create_listener_rule = true)"
+  type        = string
+  default     = ""
+}
+variable "listener_rule_path_patterns" {
+  description = "The path patterns for the listener rule"
+  type        = list(string)
+  default     = ["/*"]
 }
