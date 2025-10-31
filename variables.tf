@@ -125,6 +125,11 @@ variable "target_group_protocol" {
   type        = string
   default     = "HTTP"
 }
+variable "target_group_type" {
+  description = "Target Group type"
+  type        = string
+  default     = "instance"
+}
 variable "health_check_timeout" {
   description = "The timeout for the health check"
   type        = number

@@ -131,7 +131,7 @@ resource "aws_lb_target_group" "this" {
   port        = var.target_group_port
   protocol    = var.target_group_protocol
   vpc_id      = var.vpc_id
-  target_type = "instance"
+  target_type = var.target_group_type
 
   health_check {
     timeout             = var.health_check_timeout
